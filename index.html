@@ -44,7 +44,7 @@ footer{text-align:center;padding:22px;color:#6c8294;font-size:12px}
 <p class="muted">3人分をそれぞれ別の色紙として作成できます。まずはタイトルとデザインを選び、専用URLを共有してください。</p>
 <div class="grid" id="cardList"></div>
 <div class="row" style="margin-top:16px"><button id="newBtn">＋ 新しい寄せ書きを作成</button><button class="secondary" id="refreshBtn">一覧を更新</button></div>
-<div class="status" id="storageStatus">デモモード：このブラウザ内に保存されます。別の端末から投稿を集めるには、READMEのオンライン設定が必要です。</div>
+<div class="status" id="storageStatus">デモモード：接続設定前：SupabaseのProject URLとPublishable keyを設定すると、投稿をオンラインで共有できます。</div>
 </section>
 
 <section id="createPanel" class="panel hidden">
@@ -76,36 +76,30 @@ footer{text-align:center;padding:22px;color:#6c8294;font-size:12px}
 </main>
 <footer>そらいろ寄せ書き · 私的利用向けプロトタイプ<br>個人情報や機密情報は投稿しないでください。</footer>
 <script>
-const KEY='sorairo-yosegaki-v1';
+const SUPABASE_URL='https://qyqyxoypxobkukfaxozw.supabase.co';
+const SUPABASE_KEY='sb_publishable_HrcCKqTFKjgWiQhzU9R2nQ_mhEDHRDX';
+const READY=SUPABASE_URL.startsWith('https://') && !SUPABASE_URL.includes('PASTE_') && SUPABASE_KEY && !SUPABASE_KEY.includes('PASTE_');
 let boards=[],activeId=null,view='home';
 const $=id=>document.getElementById(id);
-function load(){try{boards=JSON.parse(localStorage.getItem(KEY)||'[]')}catch(e){boards=[]}}
-function save(){localStorage.setItem(KEY,JSON.stringify(boards))}
-function id(){return Math.random().toString(36).slice(2,8)+Date.now().toString(36).slice(-4)}
+function id(){return Math.random().toString(36).slice(2,10)+Date.now().toString(36)}
 function current(){return boards.find(b=>b.id===activeId)}
 function show(which){['home','createPanel','guestPanel','managePanel'].forEach(x=>$(x).classList.toggle('hidden',x!==which));view=which;window.scrollTo({top:0,behavior:'smooth'})}
 function esc(s){return String(s).replace(/[&<>"']/g,c=>({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#39;'}[c]))}
 function themeName(t){return ({sky:'空と飛行機（ブルー）',floral:'花柄（上品）',simple:'シンプル（白×ブルー）'})[t]||'空と飛行機'}
-function renderList(){
- const root=$('cardList');root.innerHTML='';
- if(!boards.length){root.innerHTML='<p class="muted">まだ寄せ書きがありません。「新しい寄せ書きを作成」から始めてください。</p>';return}
- boards.forEach(b=>{const div=document.createElement('div');div.className='card';div.innerHTML=`<div class="symbol">${b.theme==='sky'?'✈':b.theme==='floral'?'🌸':'✧'}</div><h3>${esc(b.title)}</h3><p>${esc(b.recipient||'贈る相手：未設定')}<br>${themeName(b.theme)} · ${b.messages.length}件のメッセージ</p><div class="row"><button data-manage="${b.id}">管理・プレビュー</button><button class="secondary" data-copy="${b.id}">URL表示</button></div>`;root.appendChild(div)});
- root.querySelectorAll('[data-manage]').forEach(el=>el.onclick=()=>openManage(el.dataset.manage));
- root.querySelectorAll('[data-copy]').forEach(el=>el.onclick=()=>{activeId=el.dataset.copy;alert(guestUrl(current()));});
-}
+function api(path,opts={}){if(!READY)throw new Error('接続設定がまだです。index.html内のSupabase URLとPublishable keyを設定してください。');return fetch(SUPABASE_URL+'/rest/v1/'+path,{...opts,headers:{apikey:SUPABASE_KEY,Authorization:'Bearer '+SUPABASE_KEY,'Content-Type':'application/json',Prefer:opts.method==='POST'?'return=representation':'',...(opts.headers||{})}}).then(async r=>{let t=await r.text();if(!r.ok)throw new Error(t||('HTTP '+r.status));return t?JSON.parse(t):[]})}
+function status(t){$('storageStatus').textContent=t}
 function guestUrl(b){const u=new URL(location.href);u.search='';u.hash='';u.searchParams.set('join',b.id);return u.href}
-function createBoard(){const title=$('titleInput').value.trim();if(!title){alert('タイトルを入力してください');return}const b={id:id(),title,recipient:$('recipientInput').value.trim(),theme:$('themeInput').value,messages:[],created:new Date().toISOString()};boards.push(b);save();$('titleInput').value='';$('recipientInput').value='';show('home');renderList();openManage(b.id)}
-function openManage(boardId){activeId=boardId;const b=current();if(!b)return;show('managePanel');$('manageHeading').textContent=b.title;$('manageMeta').textContent=`${b.recipient?'贈る相手：'+b.recipient+' · ':''}${themeName(b.theme)} · ${b.messages.length}/20人（目安）`;$('shareUrl').textContent='参加URL：'+guestUrl(b);renderBoard(b);renderMessages(b); }
+async function load(){if(!READY){boards=[];status('接続設定が必要です。SupabaseのProject URLとPublishable keyをHTMLに設定してください。');renderList();return}try{const rows=await api('yosegaki?select=*&order=created_at.desc');const msgs=await api('yosegaki_messages?select=*&order=created_at.asc');boards=rows.map(r=>({id:r.share_id,title:r.title,recipient:r.recipient||'',theme:r.theme,messages:msgs.filter(m=>m.yosegaki_id===r.id).map(m=>({id:m.id,name:m.author,body:m.message,created:m.created_at})),dbid:r.id,created:r.created_at}));status('オンライン保存：有効。投稿は参加者間で共有されます。')}catch(e){status('接続エラー：'+e.message);boards=[]}renderList()}
+function renderList(){const root=$('cardList');root.innerHTML='';if(!boards.length){root.innerHTML='<p class="muted">まだ寄せ書きがありません。「新しい寄せ書きを作成」から始めてください。</p>';return}boards.forEach(b=>{const div=document.createElement('div');div.className='card';div.innerHTML=`<div class="symbol">${b.theme==='sky'?'✈':b.theme==='floral'?'🌸':'✧'}</div><h3>${esc(b.title)}</h3><p>${esc(b.recipient||'贈る相手：未設定')}<br>${themeName(b.theme)} · ${b.messages.length}件のメッセージ</p><div class="row"><button data-manage="${b.id}">管理・プレビュー</button><button class="secondary" data-copy="${b.id}">URL表示</button></div>`;root.appendChild(div)});root.querySelectorAll('[data-manage]').forEach(el=>el.onclick=()=>openManage(el.dataset.manage));root.querySelectorAll('[data-copy]').forEach(el=>el.onclick=()=>{activeId=el.dataset.copy;prompt('この参加URLをコピーしてください',guestUrl(current()))})}
+async function createBoard(){const title=$('titleInput').value.trim();if(!title){alert('タイトルを入力してください');return}try{const sid=id();const rows=await api('yosegaki',{method:'POST',body:JSON.stringify({share_id:sid,title,recipient:$('recipientInput').value.trim(),theme:$('themeInput').value})});$('titleInput').value='';$('recipientInput').value='';await load();show('home');openManage(sid)}catch(e){alert('作成できませんでした：'+e.message)}}
+async function openManage(boardId){await load();activeId=boardId;const b=current();if(!b){alert('寄せ書きが見つかりません。');show('home');return}show('managePanel');$('manageHeading').textContent=b.title;$('manageMeta').textContent=`${b.recipient?'贈る相手：'+b.recipient+' · ':''}${themeName(b.theme)} · ${b.messages.length}件`;$('shareUrl').textContent='参加URL：'+guestUrl(b);renderBoard(b);renderMessages(b)}
 function renderBoard(b){const board=$('board');board.className='board '+b.theme;board.querySelector('h2').textContent=b.title;board.querySelector('.subtitle').textContent=b.recipient?`${b.recipient} さんへ`:'心をこめて';const root=board.querySelector('.boardmessages');root.innerHTML='';b.messages.forEach(m=>{const n=document.createElement('div');n.className='note';n.textContent=m.body+'\n— '+m.name;root.appendChild(n)});if(!b.messages.length)root.innerHTML='<div class="note">最初のメッセージを待っています…</div>'}
-function renderMessages(b){const root=$('manageMessages');root.innerHTML='';if(!b.messages.length){root.innerHTML='<p class="muted">まだメッセージはありません。</p>';return}b.messages.forEach(m=>{const d=document.createElement('div');d.className='message';d.innerHTML=`<strong>${esc(m.name)}</strong><div>${esc(m.body)}</div><small>${new Date(m.created).toLocaleString('ja-JP')}</small><div style="margin-top:8px"><button class="danger" data-remove="${m.id}">削除</button></div>`;root.appendChild(d)});root.querySelectorAll('[data-remove]').forEach(el=>el.onclick=()=>{if(confirm('このメッセージを削除しますか？')){b.messages=b.messages.filter(m=>m.id!==el.dataset.remove);save();openManage(b.id)}})}
-function openGuest(boardId){activeId=boardId;const b=current();if(!b)return;show('guestPanel');$('guestHeading').textContent=b.title;$('guestIntro').textContent=`${b.recipient?b.recipient+' さんへ · ':''}あなたからのメッセージをお寄せください。`; $('guestResult').classList.add('hidden')}
-function submitMessage(e){e.preventDefault();const b=current();if(!b)return;const name=$('nameInput').value.trim(),body=$('bodyInput').value.trim();if(!name||!body)return;if(b.messages.length>=20&&!confirm('20件を超えています。追加しますか？'))return;b.messages.push({id:id(),name,body,created:new Date().toISOString()});save();$('messageForm').reset();$('guestResult').textContent='メッセージを受け付けました。ありがとうございます！';$('guestResult').classList.remove('hidden');}
-$('newBtn').onclick=()=>show('createPanel');$('cancelCreate').onclick=()=>show('home');$('createBtn').onclick=createBoard;$('refreshBtn').onclick=()=>{load();renderList()};$('messageForm').onsubmit=submitMessage;$('guestBack').onclick=()=>{show('home');renderList()};$('manageBack').onclick=()=>{show('home');renderList()};
-$('copyLinkBtn').onclick=async()=>{const url=guestUrl(current());try{await navigator.clipboard.writeText(url);alert('参加URLをコピーしました')}catch(e){prompt('このURLをコピーしてください',url)}};
-$('openGuestBtn').onclick=()=>{const b=current();history.pushState({},'',guestUrl(b));openGuest(b.id)};
-$('printBtn').onclick=()=>window.print();
-$('deleteBoardBtn').onclick=()=>{const b=current();if(confirm(`「${b.title}」と全メッセージを削除しますか？`)){boards=boards.filter(x=>x.id!==b.id);save();history.pushState({},'',location.pathname);show('home');renderList()}};
-function route(){load();const p=new URLSearchParams(location.search);const join=p.get('join');if(join&&boards.some(b=>b.id===join)){openGuest(join)}else{show('home');renderList()}}
+function renderMessages(b){const root=$('manageMessages');root.innerHTML='';if(!b.messages.length){root.innerHTML='<p class="muted">まだメッセージはありません。</p>';return}b.messages.forEach(m=>{const d=document.createElement('div');d.className='message';d.innerHTML=`<strong>${esc(m.name)}</strong><div>${esc(m.body)}</div><small>${new Date(m.created).toLocaleString('ja-JP')}</small>`;root.appendChild(d)})}
+async function openGuest(boardId){await load();activeId=boardId;const b=current();if(!b){alert('この寄せ書きが見つかりません。作成者にURLを確認してください。');show('home');return}show('guestPanel');$('guestHeading').textContent=b.title;$('guestIntro').textContent=`${b.recipient?b.recipient+' さんへ · ':''}あなたからのメッセージをお寄せください。`;$('guestResult').classList.add('hidden')}
+async function submitMessage(e){e.preventDefault();const b=current();if(!b)return;const name=$('nameInput').value.trim(),body=$('bodyInput').value.trim();if(!name||!body)return;try{await api('yosegaki_messages',{method:'POST',body:JSON.stringify({yosegaki_id:b.dbid,author:name,message:body})});$('messageForm').reset();await load();activeId=b.id;$('guestResult').textContent='メッセージを受け付けました。ありがとうございます！';$('guestResult').classList.remove('hidden')}catch(err){alert('送信できませんでした：'+err.message)}}
+$('newBtn').onclick=()=>show('createPanel');$('cancelCreate').onclick=()=>show('home');$('createBtn').onclick=createBoard;$('refreshBtn').onclick=load;$('messageForm').onsubmit=submitMessage;$('guestBack').onclick=()=>{history.pushState({},'',location.pathname);show('home');load()};$('manageBack').onclick=()=>{history.pushState({},'',location.pathname);show('home');load()};$('copyLinkBtn').onclick=async()=>{const b=current();if(!b)return;const url=guestUrl(b);try{await navigator.clipboard.writeText(url);alert('参加URLをコピーしました')}catch(e){prompt('このURLをコピーしてください',url)}};$('openGuestBtn').onclick=()=>{const b=current();history.pushState({},'',guestUrl(b));openGuest(b.id)};$('printBtn').onclick=()=>window.print();$('deleteBoardBtn').classList.add('hidden');
+async function route(){await load();const join=new URLSearchParams(location.search).get('join');if(join)await openGuest(join);else{show('home');renderList()}}
 window.addEventListener('popstate',route);route();
+
 </script>
 </body></html>
