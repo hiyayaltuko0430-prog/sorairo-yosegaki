@@ -23,8 +23,16 @@ textarea{min-height:110px;resize:vertical}label{font-size:14px;font-weight:700}
 .message strong{display:block;color:var(--navy);margin-bottom:7px}.message small{color:#7d92a4}
 .board{position:relative;overflow:hidden;min-height:540px;aspect-ratio:1/1;background:#fff;border:9px solid #dcebf6;border-radius:6px;padding:24px;box-shadow:0 8px 24px #163e5d1b}
 .board:before{content:"✦  ✧       ☁                  ✧       ✦";position:absolute;top:8px;left:14px;right:14px;color:#7eafcf;font-size:18px;letter-spacing:.3em;pointer-events:none}
-.board.floral{border-color:#e6d9c8;background:radial-gradient(circle at 8% 8%,#f7dfe5 0 4px,transparent 5px),radial-gradient(circle at 92% 92%,#d8e9d7 0 5px,transparent 6px),#fffdf9}
-.board.simple{border-color:#d9c99b;background:#fff}
+.board.floral{border-color:#dfc9b8;background:
+ radial-gradient(ellipse at 0% 0%,rgba(239,190,199,.30) 0 7%,transparent 7.5%),
+ radial-gradient(ellipse at 100% 0%,rgba(222,203,167,.28) 0 8%,transparent 8.5%),
+ radial-gradient(ellipse at 0% 100%,rgba(195,218,190,.32) 0 8%,transparent 8.5%),
+ radial-gradient(ellipse at 100% 100%,rgba(239,190,199,.25) 0 7%,transparent 7.5%),
+ #fffaf6}
+.board.floral:before{content:"❀  ✿  ❀                         ❀  ✿  ❀";color:#bd8d91;letter-spacing:.18em;font-size:17px}
+.board.floral:after{content:"❀";position:absolute;right:13px;top:36px;color:#d9a5aa;font-size:27px;opacity:.75;pointer-events:none}
+.board.simple{border-color:#b9d5e8;background:#fff}
+.board.simple:before{content:"—  ✧  —                                      —  ✧  —";color:#b4cddd;letter-spacing:.12em;font-size:15px}
 .board h2{text-align:center;font-size:25px;margin:25px 0 4px}.board .subtitle{text-align:center;color:#6787a1;margin-bottom:18px}
 .board .boardmessages{display:grid;grid-template-columns:repeat(3,minmax(0,1fr));gap:9px}
 .board .note{min-height:90px;padding:9px 7px;color:#1f639c;font-size:13px;line-height:1.5;white-space:pre-wrap;overflow-wrap:anywhere;transform:rotate(-1deg)}
