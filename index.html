@@ -41,7 +41,7 @@ textarea{min-height:110px;resize:vertical}label{font-size:14px;font-weight:700}
 .status{padding:10px 12px;border-radius:10px;background:#f0f7fc;margin:10px 0;font-size:13px}
 footer{text-align:center;padding:22px;color:#6c8294;font-size:12px}
 @media(max-width:560px){.board{padding:14px;min-height:430px}.board .boardmessages{grid-template-columns:repeat(2,minmax(0,1fr))}.board .note{font-size:11px;min-height:82px}.panel{padding:15px}}
-@media print{body{background:white}.no-print,header,footer,.panel:not(.print-panel){display:none!important}main{margin:0;padding:0;max-width:none}.print-panel{display:block!important;box-shadow:none;border:0;padding:0}.board{width:100%;min-height:0;aspect-ratio:1/1;box-shadow:none;break-inside:avoid}.board .note{font-size:12px}}
+
 
 /* A4寄せ書きレイアウト：外枠は伸ばさず、メッセージを枠内に収める */
 .board{
@@ -55,14 +55,28 @@ footer{text-align:center;padding:22px;color:#6c8294;font-size:12px}
 }
 .board h2{flex:0 0 auto;font-size:clamp(18px,2.5vw,25px);margin:25px 0 4px}
 .board .subtitle{flex:0 0 auto;margin-bottom:12px}
-.board .boardmessages{
-  flex:1 1 auto;
-  min-height:0;
-  grid-template-columns:repeat(3,minmax(0,1fr));
-  grid-template-rows:repeat(var(--message-rows,1),minmax(0,1fr));
-  align-content:stretch;
-  gap:clamp(4px,0.8vw,9px);
+
+.board .boardmessages {
+  display: grid;
+  flex: 1 1 auto;
+  min-height: 0;
+  grid-template-columns: repeat(3, minmax(0, 1fr));
+  grid-template-rows: repeat(var(--message-rows, 1), minmax(0, 1fr));
+  align-content: stretch;
+  gap: 6px;
 }
+
+.board .note {
+  box-sizing: border-box;
+  min-width: 0;
+  min-height: 0;
+  height: 100%;
+  overflow: hidden;
+  overflow-wrap: anywhere;
+  white-space: pre-wrap;
+  transform: none;
+}
+
 .board .note{
   box-sizing:border-box;
   min-height:0;
@@ -85,11 +99,102 @@ footer{text-align:center;padding:22px;color:#6c8294;font-size:12px}
   .board.dense-2 .note{font-size:clamp(7px,1.7vw,8px)}
   .board.dense-3 .note{font-size:clamp(6.5px,1.5vw,7.5px)}
 }
-@media print{
-  @page{size:A4 portrait;margin:10mm}
-  .board{width:190mm;height:277mm;min-height:0;aspect-ratio:auto;box-shadow:none;break-inside:avoid}
-  .board .note{overflow:hidden}
+
+/* 印刷・PDF出力用 */
+@media print {
+  @page {
+    size: A4 portrait;
+    margin: 10mm;
+  }
+
+  html,
+  body {
+    margin: 0 !important;
+    padding: 0 !important;
+    width: 100% !important;
+    background: white !important;
+    -webkit-print-color-adjust: exact;
+    print-color-adjust: exact;
+  }
+
+  header,
+  footer,
+  #home,
+  #createPanel,
+  #guestPanel,
+  #managePanel > .row,
+  #shareUrl,
+  #managePanel > h3,
+  #manageMessages,
+  .no-print {
+    display: none !important;
+  }
+
+  main {
+    display: block !important;
+    width: 100% !important;
+    max-width: none !important;
+    margin: 0 !important;
+    padding: 0 !important;
+  }
+
+  #managePanel {
+    display: block !important;
+    visibility: visible !important;
+    margin: 0 !important;
+    padding: 0 !important;
+    border: 0 !important;
+    box-shadow: none !important;
+    background: transparent !important;
+  }
+
+  .print-panel {
+    display: block !important;
+    visibility: visible !important;
+    width: 100% !important;
+    margin: 0 !important;
+    padding: 0 !important;
+    border: 0 !important;
+    box-shadow: none !important;
+  }
+
+  #board {
+    display: flex !important;
+    width: 190mm !important;
+    height: 277mm !important;
+    min-height: 0 !important;
+    aspect-ratio: auto !important;
+    margin: 0 auto !important;
+    padding: 12mm !important;
+    box-sizing: border-box !important;
+    overflow: hidden !important;
+    border-radius: 0 !important;
+    box-shadow: none !important;
+    break-inside: avoid !important;
+    page-break-inside: avoid !important;
+  }
+
+  #board .boardmessages {
+    display: grid !important;
+    grid-template-columns: repeat(3, minmax(0, 1fr)) !important;
+    grid-template-rows: repeat(var(--message-rows, 1), minmax(0, 1fr)) !important;
+    flex: 1 1 auto !important;
+    min-height: 0 !important;
+  }
+
+  #board .note {
+    min-width: 0 !important;
+    min-height: 0 !important;
+    height: 100% !important;
+    overflow: hidden !important;
+    transform: none !important;
+  }
+
+  #board:before {
+    pointer-events: none;
+  }
 }
+
 
 </style>
 </head>
@@ -156,7 +261,88 @@ async function load(){if(!READY){boards=[];status('接続設定が必要です�
 function renderList(){const root=$('cardList');root.innerHTML='';if(!boards.length){root.innerHTML='<p class="muted">まだ寄せ書きがありません。「新しい寄せ書きを作成」から始めてください。</p>';return}boards.forEach(b=>{const div=document.createElement('div');div.className='card';div.innerHTML=`<div class="symbol">${themeImage(b.theme)?'🖼️':b.theme==='sky'?'✈':b.theme==='floral'||b.theme==='sakura'?'🌸':b.theme==='night'?'🌙':'✧'}</div><h3>${esc(b.title)}</h3><p>${esc(b.recipient||'贈る相手：未設定')}<br>${themeName(b.theme)} · ${b.messages.length}件のメッセージ</p><div class="row"><button data-manage="${b.id}">管理・プレビュー</button><button class="secondary" data-copy="${b.id}">URL表示</button></div>`;root.appendChild(div)});root.querySelectorAll('[data-manage]').forEach(el=>el.onclick=()=>openManage(el.dataset.manage));root.querySelectorAll('[data-copy]').forEach(el=>el.onclick=()=>{activeId=el.dataset.copy;prompt('この参加URLをコピーしてください',guestUrl(current()))})}
 async function createBoard(){const title=$('titleInput').value.trim();if(!title){alert('タイトルを入力してください');return}try{const sid=id();const chosen=$('themeInput').value;const savedTheme=chosen==='upload'?(uploadedBackground?'custom|'+uploadedBackground:''):chosen;if(!savedTheme){alert('背景画像を選択してください');return}if(savedTheme.length>450000){alert('画像データが大きすぎます。別の画像を選んでください');return}const rows=await api('yosegaki',{method:'POST',body:JSON.stringify({share_id:sid,title,recipient:$('recipientInput').value.trim(),theme:savedTheme})});$('titleInput').value='';$('recipientInput').value='';$('themeInput').value='sky';$('backgroundInput').value='';uploadedBackground='';$('uploadArea').classList.add('hidden');$('backgroundPreview').textContent='';await load();show('home');openManage(sid)}catch(e){alert('作成できませんでした：'+e.message)}}
 async function openManage(boardId){await load();activeId=boardId;const b=current();if(!b){alert('寄せ書きが見つかりません。');show('home');return}show('managePanel');$('manageHeading').textContent=b.title;$('manageMeta').textContent=`${b.recipient?'贈る相手：'+b.recipient+' · ':''}${themeName(b.theme)} · ${b.messages.length}件`;$('shareUrl').textContent='参加URL：'+guestUrl(b);renderBoard(b);renderMessages(b)}
-function renderBoard(b){const board=$('board');const count=b.messages.length;const density=count>18?'dense-3':count>12?'dense-2':count>6?'dense-1':'';board.className='board '+themeClass(b.theme)+(density?' '+density:'');const image=themeImage(b.theme);board.style.backgroundImage=image?'linear-gradient(rgba(255,255,255,.28),rgba(255,255,255,.28)),url(\"'+image+'\")':'';board.querySelector('h2').textContent=b.title;board.querySelector('.subtitle').textContent=b.recipient?`${b.recipient} さんへ`:'心をこめて';const root=board.querySelector('.boardmessages');root.innerHTML='';const cols=window.matchMedia('(max-width:560px)').matches?2:3;root.style.setProperty('--message-rows',Math.max(1,Math.ceil(Math.max(count,1)/cols)));b.messages.forEach(m=>{const n=document.createElement('div');n.className='note';n.textContent=m.body+'\n— '+m.name;root.appendChild(n)});if(!b.messages.length)root.innerHTML='<div class="note">最初のメッセージを待っています…</div>'}
+
+function fitMessageText(board) {
+  const notes = board.querySelectorAll('.note');
+
+  notes.forEach(note => {
+    // 文字サイズを元のCSS設定から取得
+    const baseSize =
+      parseFloat(getComputedStyle(note).fontSize) || 13;
+
+    let size = baseSize;
+    const minSize = 7;
+
+    note.style.fontSize = size + 'px';
+
+    while (
+      size > minSize &&
+      (
+        note.scrollHeight > note.clientHeight + 1 ||
+        note.scrollWidth > note.clientWidth + 1
+      )
+    ) {
+      size -= 0.5;
+      note.style.fontSize = size + 'px';
+    }
+  });
+}
+
+function renderBoard(b) {
+  const board = $('board');
+  const count = b.messages.length;
+
+  const density =
+    count > 18 ? 'dense-3' :
+    count > 12 ? 'dense-2' :
+    count > 6 ? 'dense-1' : '';
+
+  board.className =
+    'board ' + themeClass(b.theme) +
+    (density ? ' ' + density : '');
+
+  const image = themeImage(b.theme);
+  board.style.backgroundImage = image
+    ? 'linear-gradient(rgba(255,255,255,.28),rgba(255,255,255,.28)),url("' + image + '")'
+    : '';
+
+  board.querySelector('h2').textContent = b.title;
+  board.querySelector('.subtitle').textContent =
+    b.recipient ? `${b.recipient} さんへ` : '心をこめて';
+
+  const root = board.querySelector('.boardmessages');
+  root.innerHTML = '';
+
+  const isMobile =
+    window.matchMedia('(max-width:560px)').matches;
+  const cols = isMobile ? 2 : 3;
+
+  root.style.gridTemplateColumns =
+    `repeat(${cols}, minmax(0, 1fr))`;
+
+  const rows = Math.max(
+    1,
+    Math.ceil(Math.max(count, 1) / cols)
+  );
+  root.style.setProperty('--message-rows', rows);
+
+  b.messages.forEach(m => {
+    const n = document.createElement('div');
+    n.className = 'note';
+    n.textContent = m.body + '\n— ' + m.name;
+    root.appendChild(n);
+  });
+
+  if (!b.messages.length) {
+    root.innerHTML =
+      '<div class="note">最初のメッセージを待っています…</div>';
+  }
+
+  requestAnimationFrame(() => {
+    fitMessageText(board);
+  });
+}
+
 function renderMessages(b){const root=$('manageMessages');root.innerHTML='';if(!b.messages.length){root.innerHTML='<p class="muted">まだメッセージはありません。</p>';return}b.messages.forEach(m=>{const d=document.createElement('div');d.className='message';d.innerHTML=`<strong>${esc(m.name)}</strong><div>${esc(m.body)}</div><small>${new Date(m.created).toLocaleString('ja-JP')}</small>`;root.appendChild(d)})}
 async function openGuest(boardId){await load();activeId=boardId;const b=current();if(!b){alert('この寄せ書きが見つかりません。作成者にURLを確認してください。');show('home');return}show('guestPanel');$('guestHeading').textContent=b.title;$('guestIntro').textContent=`${b.recipient?b.recipient+' さんへ · ':''}あなたからのメッセージをお寄せください。`;$('guestResult').classList.add('hidden')}
 async function submitMessage(e){e.preventDefault();const b=current();if(!b)return;const name=$('nameInput').value.trim(),body=$('bodyInput').value.trim();if(!name||!body)return;try{await api('yosegaki_messages',{method:'POST',body:JSON.stringify({yosegaki_id:b.dbid,author:name,message:body})});$('messageForm').reset();await load();activeId=b.id;$('guestResult').textContent='メッセージを受け付けました。ありがとうございます！';$('guestResult').classList.remove('hidden')}catch(err){alert('送信できませんでした：'+err.message)}}
