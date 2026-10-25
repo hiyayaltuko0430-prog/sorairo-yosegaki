@@ -346,7 +346,43 @@ function renderBoard(b) {
 function renderMessages(b){const root=$('manageMessages');root.innerHTML='';if(!b.messages.length){root.innerHTML='<p class="muted">まだメッセージはありません。</p>';return}b.messages.forEach(m=>{const d=document.createElement('div');d.className='message';d.innerHTML=`<strong>${esc(m.name)}</strong><div>${esc(m.body)}</div><small>${new Date(m.created).toLocaleString('ja-JP')}</small>`;root.appendChild(d)})}
 async function openGuest(boardId){await load();activeId=boardId;const b=current();if(!b){alert('この寄せ書きが見つかりません。作成者にURLを確認してください。');show('home');return}show('guestPanel');$('guestHeading').textContent=b.title;$('guestIntro').textContent=`${b.recipient?b.recipient+' さんへ · ':''}あなたからのメッセージをお寄せください。`;$('guestResult').classList.add('hidden')}
 async function submitMessage(e){e.preventDefault();const b=current();if(!b)return;const name=$('nameInput').value.trim(),body=$('bodyInput').value.trim();if(!name||!body)return;try{await api('yosegaki_messages',{method:'POST',body:JSON.stringify({yosegaki_id:b.dbid,author:name,message:body})});$('messageForm').reset();await load();activeId=b.id;$('guestResult').textContent='メッセージを受け付けました。ありがとうございます！';$('guestResult').classList.remove('hidden')}catch(err){alert('送信できませんでした：'+err.message)}}
-$('themeInput').addEventListener('change',()=>{const isUpload=$('themeInput').value==='upload';$('uploadArea').classList.toggle('hidden',!isUpload);if(!isUpload){uploadedBackground='';$('backgroundInput').value='';$('backgroundPreview').textContent=''}});$('backgroundInput').addEventListener('change',async()=>{const file=$('backgroundInput').files[0];if(!file){uploadedBackground='';return}try{$('backgroundPreview').textContent='画像を準備しています…';uploadedBackground=await compressImage(file);$('backgroundPreview').textContent='画像を選択しました（保存時に寄せ書きへ登録されます）'}catch(e){uploadedBackground='';$('backgroundPreview').textContent=e.message;alert(e.message)}});$('newBtn').onclick=()=>show('createPanel');$('cancelCreate').onclick=()=>show('home');$('createBtn').onclick=createBoard;$('refreshBtn').onclick=load;$('messageForm').onsubmit=submitMessage;$('guestBack').onclick=()=>{history.pushState({},'',location.pathname);show('home');load()};$('manageBack').onclick=()=>{history.pushState({},'',location.pathname);show('home');load()};$('copyLinkBtn').onclick=async()=>{const b=current();if(!b)return;const url=guestUrl(b);try{await navigator.clipboard.writeText(url);alert('参加URLをコピーしました')}catch(e){prompt('このURLをコピーしてください',url)}};$('openGuestBtn').onclick=()=>{const b=current();history.pushState({},'',guestUrl(b));openGuest(b.id)};$('printBtn').onclick=()=>window.print();$('deleteBoardBtn').classList.add('hidden');
+$('themeInput').addEventListener('change',()=>{const isUpload=$('themeInput').value==='upload';$('uploadArea').classList.toggle('hidden',!isUpload);if(!isUpload){uploadedBackground='';$('backgroundInput').value='';$('backgroundPreview').textContent=''}});$('backgroundInput').addEventListener('change',async()=>{const file=$('backgroundInput').files[0];if(!file){uploadedBackground='';return}try{$('backgroundPreview').textContent='画像を準備しています…';uploadedBackground=await compressImage(file);$('backgroundPreview').textContent='画像を選択しました（保存時に寄せ書きへ登録されます）'}catch(e){uploadedBackground='';$('backgroundPreview').textContent=e.message;alert(e.message)}});$('newBtn').onclick=()=>show('createPanel');$('cancelCreate').onclick=()=>show('home');$('createBtn').onclick=createBoard;$('refreshBtn').onclick=load;$('messageForm').onsubmit=submitMessage;$('guestBack').onclick=()=>{history.pushState({},'',location.pathname);show('home');load()};$('manageBack').onclick=()=>{history.pushState({},'',location.pathname);show('home');load()};$('copyLinkBtn').onclick=async()=>{const b=current();if(!b)return;const url=guestUrl(b);try{await navigator.clipboard.writeText(url);alert('参加URLをコピーしました')}catch(e){prompt('このURLをコピーしてください',url)}};$('openGuestBtn').onclick=()=>{const b=current();history.pushState({},'',guestUrl(b));openGuest(b.id)};$('printBtn').onclick=()=>{
+  const sourceBoard=$('board');
+  if(!sourceBoard){alert('寄せ書きが見つかりません');return;}
+  const printWindow=window.open('','_blank');
+  if(!printWindow){alert('印刷画面を開けませんでした。ブラウザのポップアップを許可して、もう一度お試しください。');return;}
+  const css=[...document.querySelectorAll('style')].map(el=>el.textContent).join('\n');
+  const boardHTML=sourceBoard.outerHTML;
+  printWindow.document.open();
+  printWindow.document.write(`<!doctype html><html lang="ja"><head><meta charset="utf-8"><meta name="viewport" content="width=device-width,initial-scale=1"><title>寄せ書き PDF</title><style>${css}
+    @page{size:A4 portrait;margin:10mm}
+    html,body{margin:0!important;padding:0!important;background:#fff!important;width:100%!important}
+    body{font-family:-apple-system,BlinkMacSystemFont,"Hiragino Kaku Gothic ProN","Yu Gothic",Meiryo,sans-serif}
+    .print-sheet{width:190mm;margin:0 auto}
+    #board{display:flex!important;flex-direction:column!important;width:190mm!important;height:277mm!important;min-height:0!important;aspect-ratio:auto!important;margin:0!important;padding:9mm!important;box-sizing:border-box!important;overflow:hidden!important;border-radius:0!important;box-shadow:none!important;break-inside:avoid!important;page-break-inside:avoid!important}
+    #board h2{flex:0 0 auto!important;margin:14mm 0 2mm!important;font-size:20pt!important}
+    #board .subtitle{flex:0 0 auto!important;margin-bottom:5mm!important}
+    #board .boardmessages{display:grid!important;grid-template-columns:repeat(3,minmax(0,1fr))!important;grid-template-rows:repeat(var(--message-rows,1),minmax(0,1fr))!important;flex:1 1 auto!important;min-height:0!important;gap:2mm!important}
+    #board .note{min-width:0!important;min-height:0!important;height:100%!important;overflow:hidden!important;transform:none!important;white-space:pre-wrap!important;overflow-wrap:anywhere!important;box-sizing:border-box!important}
+    #board .sign{flex:0 0 auto!important;margin-top:2mm!important}
+    *{-webkit-print-color-adjust:exact!important;print-color-adjust:exact!important}
+    @media screen{body{padding:12px!important;background:#edf4f8!important}.print-sheet{max-width:100%;overflow:auto}#board{margin:0 auto!important}}
+  </style></head><body><div class="print-sheet">${boardHTML}</div><script>
+    function fitPrintText(){
+      const board=document.getElementById('board');
+      const notes=board.querySelectorAll('.note');
+      notes.forEach(note=>{
+        note.style.fontSize='13px';
+        let size=13;
+        while(size>6.5 && (note.scrollHeight>note.clientHeight+1 || note.scrollWidth>note.clientWidth+1)){
+          size-=0.5; note.style.fontSize=size+'px';
+        }
+      });
+    }
+    window.onload=()=>{fitPrintText();setTimeout(()=>{fitPrintText();window.focus();window.print();},300)};
+  <\/script></body></html>`);
+  printWindow.document.close();
+};$('deleteBoardBtn').classList.add('hidden');
 async function route(){await load();const join=new URLSearchParams(location.search).get('join');if(join)await openGuest(join);else{show('home');renderList()}}
 window.addEventListener('popstate',route);route();
 
