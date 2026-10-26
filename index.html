@@ -20,7 +20,7 @@ textarea{min-height:110px;resize:vertical}label{font-size:14px;font-weight:700}
 .muted{font-size:13px;color:#637b91;line-height:1.6}.hidden{display:none!important}.row{display:flex;gap:10px;flex-wrap:wrap;align-items:center}
 .messages{display:grid;grid-template-columns:repeat(auto-fit,minmax(210px,1fr));gap:10px;margin-top:14px}
 .message{border:1px solid #d9e8f3;border-radius:12px;padding:13px;background:#fff;white-space:pre-wrap;overflow-wrap:anywhere}
-.message strong{display:block;color:var(--navy);margin-bottom:7px}.message small{color:#7d92a4}
+.message strong{display:block;color:var(--navy);margin-bottom:7px}.message small{color:#7d92a4}.message-actions{margin-top:10px}.message-actions button{padding:7px 10px;font-size:12px}
 .board{position:relative;overflow:hidden;min-height:540px;aspect-ratio:1/1;background:#fff;border:9px solid #dcebf6;border-radius:6px;padding:24px;box-shadow:0 8px 24px #163e5d1b}
 .board:before{content:"✦  ✧       ☁                  ✧       ✦";position:absolute;top:8px;left:14px;right:14px;color:#7eafcf;font-size:18px;letter-spacing:.3em;pointer-events:none}
 .board.floral{border-color:#e6d9c8;background:radial-gradient(circle at 8% 8%,#f7dfe5 0 4px,transparent 5px),radial-gradient(circle at 92% 92%,#d8e9d7 0 5px,transparent 6px),#fffdf9}
@@ -343,7 +343,33 @@ function renderBoard(b) {
   });
 }
 
-function renderMessages(b){const root=$('manageMessages');root.innerHTML='';if(!b.messages.length){root.innerHTML='<p class="muted">まだメッセージはありません。</p>';return}b.messages.forEach(m=>{const d=document.createElement('div');d.className='message';d.innerHTML=`<strong>${esc(m.name)}</strong><div>${esc(m.body)}</div><small>${new Date(m.created).toLocaleString('ja-JP')}</small>`;root.appendChild(d)})}
+function renderMessages(b){
+  const root=$('manageMessages');root.innerHTML='';
+  if(!b.messages.length){root.innerHTML='<p class="muted">まだメッセージはありません。</p>';return}
+  b.messages.forEach(m=>{
+    const d=document.createElement('div');d.className='message';
+    const author=document.createElement('strong');author.textContent=m.name;
+    const body=document.createElement('div');body.textContent=m.body;
+    const date=document.createElement('small');date.textContent=new Date(m.created).toLocaleString('ja-JP');
+    const actions=document.createElement('div');actions.className='message-actions no-print';
+    const del=document.createElement('button');del.type='button';del.className='danger';del.textContent='このコメントを削除';
+    del.onclick=()=>deleteMessage(m.id);
+    actions.appendChild(del);d.append(author,body,date,actions);root.appendChild(d);
+  });
+}
+async function deleteMessage(messageId){
+  const b=current();if(!b)return;
+  if(!confirm('このコメントを削除しますか？この操作は取り消せません。'))return;
+  try{
+    await api('yosegaki_messages?id=eq.'+encodeURIComponent(messageId),{method:'DELETE'});
+    await load();activeId=b.id;
+    const updated=current();
+    if(updated){$('manageHeading').textContent=updated.title;$('manageMeta').textContent=`${updated.recipient?'贈る相手：'+updated.recipient+' · ':''}${themeName(updated.theme)} · ${updated.messages.length}件`;$('shareUrl').textContent='参加URL：'+guestUrl(updated);renderBoard(updated);renderMessages(updated);}
+    alert('コメントを削除しました。');
+  }catch(e){
+    alert('コメントを削除できませんでした。Supabase側で yosegaki_messages テーブルの DELETE 権限（RLSポリシー）が許可されていない可能性があります。詳細：'+e.message);
+  }
+}
 async function openGuest(boardId){await load();activeId=boardId;const b=current();if(!b){alert('この寄せ書きが見つかりません。作成者にURLを確認してください。');show('home');return}show('guestPanel');$('guestHeading').textContent=b.title;$('guestIntro').textContent=`${b.recipient?b.recipient+' さんへ · ':''}あなたからのメッセージをお寄せください。`;$('guestResult').classList.add('hidden')}
 async function submitMessage(e){e.preventDefault();const b=current();if(!b)return;const name=$('nameInput').value.trim(),body=$('bodyInput').value.trim();if(!name||!body)return;try{await api('yosegaki_messages',{method:'POST',body:JSON.stringify({yosegaki_id:b.dbid,author:name,message:body})});$('messageForm').reset();await load();activeId=b.id;$('guestResult').textContent='メッセージを受け付けました。ありがとうございます！';$('guestResult').classList.remove('hidden')}catch(err){alert('送信できませんでした：'+err.message)}}
 $('themeInput').addEventListener('change',()=>{const isUpload=$('themeInput').value==='upload';$('uploadArea').classList.toggle('hidden',!isUpload);if(!isUpload){uploadedBackground='';$('backgroundInput').value='';$('backgroundPreview').textContent=''}});$('backgroundInput').addEventListener('change',async()=>{const file=$('backgroundInput').files[0];if(!file){uploadedBackground='';return}try{$('backgroundPreview').textContent='画像を準備しています…';uploadedBackground=await compressImage(file);$('backgroundPreview').textContent='画像を選択しました（保存時に寄せ書きへ登録されます）'}catch(e){uploadedBackground='';$('backgroundPreview').textContent=e.message;alert(e.message)}});$('newBtn').onclick=()=>show('createPanel');$('cancelCreate').onclick=()=>show('home');$('createBtn').onclick=createBoard;$('refreshBtn').onclick=load;$('messageForm').onsubmit=submitMessage;$('guestBack').onclick=()=>{history.pushState({},'',location.pathname);show('home');load()};$('manageBack').onclick=()=>{history.pushState({},'',location.pathname);show('home');load()};$('copyLinkBtn').onclick=async()=>{const b=current();if(!b)return;const url=guestUrl(b);try{await navigator.clipboard.writeText(url);alert('参加URLをコピーしました')}catch(e){prompt('このURLをコピーしてください',url)}};$('openGuestBtn').onclick=()=>{const b=current();history.pushState({},'',guestUrl(b));openGuest(b.id)};$('printBtn').onclick=()=>{
@@ -352,7 +378,14 @@ $('themeInput').addEventListener('change',()=>{const isUpload=$('themeInput').va
   const printWindow=window.open('','_blank');
   if(!printWindow){alert('印刷画面を開けませんでした。ブラウザのポップアップを許可して、もう一度お試しください。');return;}
   const css=[...document.querySelectorAll('style')].map(el=>el.textContent).join('\n');
-  const boardHTML=sourceBoard.outerHTML;
+  const printBoard=sourceBoard.cloneNode(true);
+  // CSS背景画像はiPhoneの印刷で省略されることがあるため、実画像として配置する
+  const bgMatch=(sourceBoard.style.backgroundImage||'').match(/url\([\"']?(data:image\/[^\"')]+)[\"']?\)/);
+  if(bgMatch){
+    const bg=document.createElement('img');bg.className='print-bg';bg.src=bgMatch[1];bg.alt='';
+    printBoard.insertBefore(bg,printBoard.firstChild);
+  }
+  const boardHTML=printBoard.outerHTML;
   printWindow.document.open();
   printWindow.document.write(`<!doctype html><html lang="ja"><head><meta charset="utf-8"><meta name="viewport" content="width=device-width,initial-scale=1"><title>寄せ書き PDF</title><style>${css}
     @page{size:A4 portrait;margin:10mm}
@@ -360,11 +393,15 @@ $('themeInput').addEventListener('change',()=>{const isUpload=$('themeInput').va
     body{font-family:-apple-system,BlinkMacSystemFont,"Hiragino Kaku Gothic ProN","Yu Gothic",Meiryo,sans-serif}
     .print-sheet{width:190mm;margin:0 auto}
     #board{display:flex!important;flex-direction:column!important;width:190mm!important;height:277mm!important;min-height:0!important;aspect-ratio:auto!important;margin:0!important;padding:9mm!important;box-sizing:border-box!important;overflow:hidden!important;border-radius:0!important;box-shadow:none!important;break-inside:avoid!important;page-break-inside:avoid!important}
+    #board{position:relative!important;background-color:#fff!important;background-image:none!important}
+    #board .print-bg{position:absolute!important;inset:0!important;width:100%!important;height:100%!important;object-fit:cover!important;z-index:0!important;display:block!important}
+    #board h2,#board .subtitle,#board .boardmessages,#board .sign{position:relative!important;z-index:1!important}
     #board h2{flex:0 0 auto!important;margin:14mm 0 2mm!important;font-size:20pt!important}
     #board .subtitle{flex:0 0 auto!important;margin-bottom:5mm!important}
     #board .boardmessages{display:grid!important;grid-template-columns:repeat(3,minmax(0,1fr))!important;grid-template-rows:repeat(var(--message-rows,1),minmax(0,1fr))!important;flex:1 1 auto!important;min-height:0!important;gap:2mm!important}
     #board .note{min-width:0!important;min-height:0!important;height:100%!important;overflow:hidden!important;transform:none!important;white-space:pre-wrap!important;overflow-wrap:anywhere!important;box-sizing:border-box!important}
     #board .sign{flex:0 0 auto!important;margin-top:2mm!important}
+    .message-actions{display:none!important}
     *{-webkit-print-color-adjust:exact!important;print-color-adjust:exact!important}
     @media screen{body{padding:12px!important;background:#edf4f8!important}.print-sheet{max-width:100%;overflow:auto}#board{margin:0 auto!important}}
   </style></head><body><div class="print-sheet">${boardHTML}</div><script>
