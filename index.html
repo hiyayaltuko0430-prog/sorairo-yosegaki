@@ -288,9 +288,24 @@ function fitMessageText(board) {
   });
 }
 
+const HIDDEN_MESSAGES_KEY = 'sorairo-yosegaki-hidden-message-ids-v1';
+function getHiddenMessageIds() {
+  try {
+    const value = JSON.parse(localStorage.getItem(HIDDEN_MESSAGES_KEY) || '[]');
+    return new Set(Array.isArray(value) ? value.map(String) : []);
+  } catch (e) {
+    return new Set();
+  }
+}
+function visibleMessages(boardData) {
+  const hidden = getHiddenMessageIds();
+  return boardData.messages.filter(m => !hidden.has(String(m.id)));
+}
+
 function renderBoard(b) {
   const board = $('board');
-  const count = b.messages.length;
+  const messagesToShow = visibleMessages(b);
+  const count = messagesToShow.length;
 
   const density =
     count > 18 ? 'dense-3' :
@@ -326,7 +341,7 @@ function renderBoard(b) {
   );
   root.style.setProperty('--message-rows', rows);
 
-  b.messages.forEach(m => {
+  messagesToShow.forEach(m => {
     const n = document.createElement('div');
     n.className = 'note';
     n.textContent = m.body + '\n— ' + m.name;
@@ -345,29 +360,34 @@ function renderBoard(b) {
 
 function renderMessages(b){
   const root=$('manageMessages');root.innerHTML='';
-  if(!b.messages.length){root.innerHTML='<p class="muted">まだメッセージはありません。</p>';return}
-  b.messages.forEach(m=>{
+  const messagesToShow=visibleMessages(b);
+  if(!messagesToShow.length){root.innerHTML='<p class="muted">表示中のコメントはありません。</p>';return}
+  messagesToShow.forEach(m=>{
     const d=document.createElement('div');d.className='message';
     const author=document.createElement('strong');author.textContent=m.name;
     const body=document.createElement('div');body.textContent=m.body;
     const date=document.createElement('small');date.textContent=new Date(m.created).toLocaleString('ja-JP');
     const actions=document.createElement('div');actions.className='message-actions no-print';
-    const del=document.createElement('button');del.type='button';del.className='danger';del.textContent='このコメントを削除';
-    del.onclick=()=>deleteMessage(m.id);
+    const del=document.createElement('button');del.type='button';del.className='danger';del.textContent='このコメントを非表示';
+    del.onclick=()=>hideMessage(m.id);
     actions.appendChild(del);d.append(author,body,date,actions);root.appendChild(d);
   });
 }
-async function deleteMessage(messageId){
+function hideMessage(messageId){
   const b=current();if(!b)return;
-  if(!confirm('このコメントを削除しますか？この操作は取り消せません。'))return;
-  try{
-    await api('yosegaki_messages?id=eq.'+encodeURIComponent(messageId),{method:'DELETE'});
-    await load();activeId=b.id;
+  if(!confirm('このコメントをこのブラウザで非表示にしますか？\nSupabase上のデータは削除されません。'))return;
+  try {
+    const hidden=getHiddenMessageIds();
+    hidden.add(String(messageId));
+    localStorage.setItem(HIDDEN_MESSAGES_KEY,JSON.stringify([...hidden]));
     const updated=current();
-    if(updated){$('manageHeading').textContent=updated.title;$('manageMeta').textContent=`${updated.recipient?'贈る相手：'+updated.recipient+' · ':''}${themeName(updated.theme)} · ${updated.messages.length}件`;$('shareUrl').textContent='参加URL：'+guestUrl(updated);renderBoard(updated);renderMessages(updated);}
-    alert('コメントを削除しました。');
-  }catch(e){
-    alert('コメントを削除できませんでした。Supabase側で yosegaki_messages テーブルの DELETE 権限（RLSポリシー）が許可されていない可能性があります。詳細：'+e.message);
+    if(updated){
+      $('manageMeta').textContent=`${updated.recipient?'贈る相手：'+updated.recipient+' · ':''}${themeName(updated.theme)} · ${visibleMessages(updated).length}件表示`;
+      renderBoard(updated);
+      renderMessages(updated);
+    }
+  } catch(e) {
+    alert('非表示設定を保存できませんでした。ブラウザのサイトデータ保存が許可されているか確認してください。');
   }
 }
 async function openGuest(boardId){await load();activeId=boardId;const b=current();if(!b){alert('この寄せ書きが見つかりません。作成者にURLを確認してください。');show('home');return}show('guestPanel');$('guestHeading').textContent=b.title;$('guestIntro').textContent=`${b.recipient?b.recipient+' さんへ · ':''}あなたからのメッセージをお寄せください。`;$('guestResult').classList.add('hidden')}
