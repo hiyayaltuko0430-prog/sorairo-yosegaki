@@ -224,7 +224,7 @@ footer{text-align:center;padding:22px;color:#6c8294;font-size:12px}
 <form id="messageForm">
 <label>お名前</label><input id="nameInput" required maxlength="30" placeholder="例：鈴木">
 <label>メッセージ（200文字まで）</label><textarea id="bodyInput" required maxlength="200" placeholder="感謝や応援のメッセージを書いてください"></textarea>
-<div class="row"><button type="submit">メッセージを送る</button><button type="button" class="secondary" id="guestBack">戻る</button></div>
+<div class="row"><button type="submit">メッセージを送る</button></div><p class="muted">この画面から寄せ書きの一覧や他の方のコメントは閲覧できません。入力が終わったら、この画面を閉じてください。</p>
 </form><div id="guestResult" class="status hidden"></div>
 </section>
 
@@ -372,7 +372,7 @@ async function deleteMessage(messageId){
 }
 async function openGuest(boardId){await load();activeId=boardId;const b=current();if(!b){alert('この寄せ書きが見つかりません。作成者にURLを確認してください。');show('home');return}show('guestPanel');$('guestHeading').textContent=b.title;$('guestIntro').textContent=`${b.recipient?b.recipient+' さんへ · ':''}あなたからのメッセージをお寄せください。`;$('guestResult').classList.add('hidden')}
 async function submitMessage(e){e.preventDefault();const b=current();if(!b)return;const name=$('nameInput').value.trim(),body=$('bodyInput').value.trim();if(!name||!body)return;try{await api('yosegaki_messages',{method:'POST',body:JSON.stringify({yosegaki_id:b.dbid,author:name,message:body})});$('messageForm').reset();await load();activeId=b.id;$('guestResult').textContent='メッセージを受け付けました。ありがとうございます！';$('guestResult').classList.remove('hidden')}catch(err){alert('送信できませんでした：'+err.message)}}
-$('themeInput').addEventListener('change',()=>{const isUpload=$('themeInput').value==='upload';$('uploadArea').classList.toggle('hidden',!isUpload);if(!isUpload){uploadedBackground='';$('backgroundInput').value='';$('backgroundPreview').textContent=''}});$('backgroundInput').addEventListener('change',async()=>{const file=$('backgroundInput').files[0];if(!file){uploadedBackground='';return}try{$('backgroundPreview').textContent='画像を準備しています…';uploadedBackground=await compressImage(file);$('backgroundPreview').textContent='画像を選択しました（保存時に寄せ書きへ登録されます）'}catch(e){uploadedBackground='';$('backgroundPreview').textContent=e.message;alert(e.message)}});$('newBtn').onclick=()=>show('createPanel');$('cancelCreate').onclick=()=>show('home');$('createBtn').onclick=createBoard;$('refreshBtn').onclick=load;$('messageForm').onsubmit=submitMessage;$('guestBack').onclick=()=>{history.pushState({},'',location.pathname);show('home');load()};$('manageBack').onclick=()=>{history.pushState({},'',location.pathname);show('home');load()};$('copyLinkBtn').onclick=async()=>{const b=current();if(!b)return;const url=guestUrl(b);try{await navigator.clipboard.writeText(url);alert('参加URLをコピーしました')}catch(e){prompt('このURLをコピーしてください',url)}};$('openGuestBtn').onclick=()=>{const b=current();history.pushState({},'',guestUrl(b));openGuest(b.id)};$('printBtn').onclick=()=>{
+$('themeInput').addEventListener('change',()=>{const isUpload=$('themeInput').value==='upload';$('uploadArea').classList.toggle('hidden',!isUpload);if(!isUpload){uploadedBackground='';$('backgroundInput').value='';$('backgroundPreview').textContent=''}});$('backgroundInput').addEventListener('change',async()=>{const file=$('backgroundInput').files[0];if(!file){uploadedBackground='';return}try{$('backgroundPreview').textContent='画像を準備しています…';uploadedBackground=await compressImage(file);$('backgroundPreview').textContent='画像を選択しました（保存時に寄せ書きへ登録されます）'}catch(e){uploadedBackground='';$('backgroundPreview').textContent=e.message;alert(e.message)}});$('newBtn').onclick=()=>show('createPanel');$('cancelCreate').onclick=()=>show('home');$('createBtn').onclick=createBoard;$('refreshBtn').onclick=load;$('messageForm').onsubmit=submitMessage;$('manageBack').onclick=()=>{history.pushState({},'',location.pathname);show('home');load()};$('copyLinkBtn').onclick=async()=>{const b=current();if(!b)return;const url=guestUrl(b);try{await navigator.clipboard.writeText(url);alert('参加URLをコピーしました')}catch(e){prompt('このURLをコピーしてください',url)}};$('openGuestBtn').onclick=()=>{const b=current();if(!b)return;guestOnlyId=b.id;history.pushState({guestOnly:true},'',guestUrl(b));openGuest(b.id)};$('printBtn').onclick=()=>{
   const sourceBoard=$('board');
   if(!sourceBoard){alert('寄せ書きが見つかりません');return;}
   const printWindow=window.open('','_blank');
@@ -420,8 +420,34 @@ $('themeInput').addEventListener('change',()=>{const isUpload=$('themeInput').va
   <\/script></body></html>`);
   printWindow.document.close();
 };$('deleteBoardBtn').classList.add('hidden');
-async function route(){await load();const join=new URLSearchParams(location.search).get('join');if(join)await openGuest(join);else{show('home');renderList()}}
-window.addEventListener('popstate',route);route();
+let guestOnlyId = new URLSearchParams(location.search).get('join');
+async function route(){
+  await load();
+  const join = new URLSearchParams(location.search).get('join') || guestOnlyId;
+  if(join){
+    guestOnlyId = join;
+    // 参加URLから開いた利用者は、アプリ内の一覧・管理画面へ移動させない。
+    if(new URLSearchParams(location.search).get('join') !== join){
+      const u = new URL(location.href); u.searchParams.set('join', join);
+      history.replaceState({guestOnly:true}, '', u.pathname + u.search + u.hash);
+    }
+    await openGuest(join);
+  } else {
+    show('home'); renderList();
+  }
+}
+// ブラウザの戻る操作でも参加画面からホームへ抜けないようにする。
+window.addEventListener('popstate', async () => {
+  if(guestOnlyId){
+    const u = new URL(location.href); u.searchParams.set('join', guestOnlyId);
+    history.pushState({guestOnly:true}, '', u.pathname + u.search + u.hash);
+    await openGuest(guestOnlyId);
+  } else {
+    await route();
+  }
+});
+if(guestOnlyId){history.replaceState({guestOnly:true}, '', location.pathname + location.search + location.hash);history.pushState({guestOnly:true}, '', location.pathname + location.search + location.hash);}
+route();
 
 </script>
 </body></html>
